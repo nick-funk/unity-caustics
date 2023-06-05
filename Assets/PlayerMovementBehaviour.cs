@@ -5,15 +5,25 @@ using UnityEngine;
 public class PlayerMovementBehaviour : MonoBehaviour
 {
     public Transform CameraPosition;
-    public float Speed = 6f;
+    public float Speed = 0.5f;
+
+    private Rigidbody _rigidBody;
+    private Vector3 _direction;
+    private float _vertical;
+
+    public void Start()
+    {
+        _rigidBody = GetComponent<Rigidbody>();
+    }
 
     public void Update()
     {
-        float horizontal = Input.GetAxis("Horizontal");
-        float vertical = Input.GetAxis("Vertical");
+        _vertical = Input.GetAxis("Vertical");
+        _direction = (transform.position - CameraPosition.position).normalized;
+    }
 
-        Vector3 dir = (transform.position - CameraPosition.position).normalized;
-
-        transform.position += dir * vertical * Speed * Time.deltaTime;
+    public void FixedUpdate()
+    {
+        _rigidBody.MovePosition(transform.position + _direction * _vertical * Speed);
     }
 }
