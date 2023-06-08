@@ -118,6 +118,7 @@ public class CausticGenerator : EditorWindow
     private GameObject _waterSurface;
     private GameObject _terrainSurface;
     private PlanePoly _waterPlane;
+    private PlanePoly _terrainPlane;
 
     [MenuItem("Tools/Caustics")]
     public static void ShowMenu()
@@ -169,21 +170,33 @@ public class CausticGenerator : EditorWindow
 
     private void onCastLight()
     {
-        if (!_waterSurface || !_terrainSurface || _waterPlane == null)
+        if (!_waterSurface || !_terrainSurface || _waterPlane == null || _terrainPlane == null)
         {
+            Debug.Log("missing surfaces and/or planes");
             return;
         }
 
         int res = 512;
 
-        var points = castLight(
-            res,
-            res,
-            _waterPlane,
-            _waterSurface,
-            _terrainSurface,
-            new Vector3(0, 0, 0)
-        );
+        var litPoints = new List<Vector3>();
+        for (int p = 0; p < 3; p++)
+        {
+            var litSpots = castLight(
+                res,
+                res,
+                _waterPlane,
+                _terrainPlane,
+                _waterSurface,
+                _terrainSurface,
+                new Vector3(
+                    UnityEngine.Random.Range(0.0f, 0.001f),
+                    0,
+                    UnityEngine.Random.Range(0.0f, 0.001f)
+                )
+            );
+
+            litPoints.AddRange(litSpots);
+        }
 
         Texture2D texture = new Texture2D(res, res, TextureFormat.RGBA32, false);
 
@@ -196,7 +209,7 @@ public class CausticGenerator : EditorWindow
         texture.SetPixels(colors);
         texture.Apply();
 
-        foreach (var point in points ) {
+        foreach (var point in litPoints ) {
             int x = (int)Mathf.Clamp(point.x, 0f, res);
             int y = (int)Mathf.Clamp(point.z, 0f, res);
 
@@ -224,13 +237,14 @@ public class CausticGenerator : EditorWindow
     private List<Vector3> castLight(
         int width, 
         int height,
-        PlanePoly poly,
+        PlanePoly waterPoly,
+        PlanePoly terrainPoly,
         GameObject water,
         GameObject terrain,
         Vector3 shift)
     {
-        float xStep = poly.offset.x * 2f / width;
-        float yStep = poly.offset.z * 2f / height;
+        float xStep = waterPoly.offset.x * 2f / width;
+        float yStep = waterPoly.offset.z * 2f / height;
 
         var waterCollider = water.GetComponent<MeshCollider>();
         var terrainCollider = terrain.GetComponent<MeshCollider>();
@@ -251,7 +265,7 @@ public class CausticGenerator : EditorWindow
                 float sZ = (height - y) * yStep;
 
                 var ray = new Ray(
-                    water.transform.position + new Vector3(sX, 1f, sZ) - poly.offset + shift,
+                    water.transform.position + new Vector3(sX, 1f, sZ) - waterPoly.offset + shift,
                     Vector3.down
                 );
 
@@ -293,12 +307,12 @@ public class CausticGenerator : EditorWindow
 
                         Debug.DrawRay(hit.point + new Vector3(0, 0.05f, 0), Vector3.down * 0.1f, Color.red, 5);
 
-                        var offsetPoint = hit.point - terrain.transform.position + poly.offset;
+                        var offsetPoint = hit.point - terrain.transform.position + terrainPoly.offset;
                         var lightPoint = 
                             new Vector3(
-                                Mathf.Round(offsetPoint.x / (poly.offset.x * 2) * width), 
+                                Mathf.Round(offsetPoint.x / (terrainPoly.offset.x * 2) * width), 
                                 0.0f,
-                                Mathf.Round(offsetPoint.z / (poly.offset.z * 2) * height)
+                                Mathf.Round(offsetPoint.z / (terrainPoly.offset.z * 2) * height)
                             );
 
                         lightPoints.Add(lightPoint);
@@ -321,23 +335,26 @@ public class CausticGenerator : EditorWindow
             DestroyImmediate(_terrainSurface);
         }
 
-        int widthSegments = 100;
-        int heightSegments = 100;
+        int widthSegments = 200;
+        int heightSegments = 200;
 
-        Vector2 size = new Vector2(2f, 2f);
+        Vector2 size = new Vector2(4f, 4f);
         float stepX = size.x / widthSegments;
         float stepY = size.y / heightSegments;
 
         _waterPlane = new PlanePoly(widthSegments, heightSegments, stepX, stepY);
-        // _waterPlane.SineHeights(0.25f, Mathf.PI / 4f * 0.25f);
         _waterPlane.PerlinHeights(new Vector2(0, 0), 0.25f, 0.0325f, 0.0325f);
         _waterPlane.PerlinHeights(new Vector2(100, 100), 0.035f, 0.1f, 0.1f);
 
         _waterSurface = createPlane(_waterPlane, "water", Color.blue);
         _waterSurface.transform.position = new Vector3(0, 6, 0);
 
-        var terrainPlane = new PlanePoly(widthSegments, heightSegments, stepX, stepY);
-        _terrainSurface = createPlane(terrainPlane, "terrain", Color.grey);
+        Vector2 terrainSize = new Vector2(2f, 2f);
+        float terrainStepX = terrainSize.x / widthSegments;
+        float terrainStepY = terrainSize.y / heightSegments;
+
+        _terrainPlane = new PlanePoly(widthSegments, heightSegments, terrainStepX, terrainStepY);
+        _terrainSurface = createPlane(_terrainPlane, "terrain", Color.grey);
         _terrainSurface.transform.position = new Vector3(0, 5, 0);
     }
 }
