@@ -223,7 +223,16 @@ public class CausticGenerator : EditorWindow
                     var norm = hit.normal;
                     var incident = ray.direction.normalized;
 
-                    Vector3 refracted = (n1 / n2 * Vector3.Cross(norm, Vector3.Cross(-norm, incident)) - norm * Mathf.Sqrt(1 - Vector3.Dot(Vector3.Cross(norm, incident) * (n1 / n2 * n1 / n2), Vector3.Cross(norm, incident)))).normalized;
+                    Vector3 refracted = 
+                        (n1 / n2 * 
+                            Vector3.Cross(norm, Vector3.Cross(-norm, incident)) - 
+                            norm * Mathf.Sqrt(
+                                1 - Vector3.Dot(
+                                    Vector3.Cross(norm, incident) * (n1 / n2 * n1 / n2),
+                                    Vector3.Cross(norm, incident)
+                                )
+                            )
+                        ).normalized;
 
                     var refRay = new Ray(incidentPos, refracted);
                     // Debug.DrawRay(refRay.origin, refRay.direction * 1.33f, Color.yellow, 5);
@@ -242,9 +251,6 @@ public class CausticGenerator : EditorWindow
                 }
             }
         }
-
-        Debug.Log($"{hitCount} / {width * height}");
-        Debug.Log(refHitCount);
     }
 
     private void onGenerate()
