@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using TreeEditor;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -54,13 +55,22 @@ public class PlanePoly
         }
     }
 
-    public void RandomizeHeights(float min, float max)
+    public void PerlinHeights(
+        Vector2 origin,
+        float scale,
+        float sampleWidth,
+        float sampleHeight)
     {
         for (int x = 0; x <= width; x++)
         {
             for (int z = 0; z <= depth; z++)
             {
-                var heightOffset = UnityEngine.Random.Range(min, max);
+                var sampleX = origin.x + x * sampleWidth;
+                var sampleZ = origin.y + z * sampleHeight;
+
+                var heightOffset = 
+                    Mathf.PerlinNoise(sampleX, sampleZ) * scale;
+
                 var index = coordToIndex(depth, x, z);
 
                 verts[index] = 
@@ -256,8 +266,9 @@ public class CausticGenerator : EditorWindow
         float stepY = size.y / heightSegments;
 
         _waterPlane = new PlanePoly(widthSegments, heightSegments, stepX, stepY);
-        _waterPlane.SineHeights(0.25f, Mathf.PI / 4f * 0.25f);
-        _waterPlane.RandomizeHeights(0.0f, 0.015f);
+        // _waterPlane.SineHeights(0.25f, Mathf.PI / 4f * 0.25f);
+        _waterPlane.PerlinHeights(new Vector2(0, 0), 0.25f, 0.0325f, 0.0325f);
+        _waterPlane.PerlinHeights(new Vector2(100, 100), 0.035f, 0.1f, 0.1f);
 
         _waterSurface = createPlane(_waterPlane, "water", Color.blue);
         _waterSurface.transform.position = new Vector3(0, 6, 0);
