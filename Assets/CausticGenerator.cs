@@ -119,6 +119,7 @@ public class CausticGenerator : EditorWindow
     private GameObject _terrainSurface;
     private PlanePoly _waterPlane;
     private PlanePoly _terrainPlane;
+    private int _time;
 
     [MenuItem("Tools/Caustics")]
     public static void ShowMenu()
@@ -139,6 +140,10 @@ public class CausticGenerator : EditorWindow
         var castLightButton = new Button(onCastLight);
         castLightButton.text = "Cast Light";
         rootVisualElement.Add(castLightButton);
+
+        var stepTimeButton = new Button(onStepTime);
+        stepTimeButton.text = "Step Time";
+        rootVisualElement.Add(stepTimeButton);
     }
 
     private GameObject createPlane(PlanePoly plane, string name, Color color)
@@ -232,7 +237,7 @@ public class CausticGenerator : EditorWindow
         DestroyImmediate(texture);
         DestroyImmediate(blurred);
 
-        var path = Application.dataPath + "/../gen-output/caustic.png";
+        var path = Application.dataPath + $"/../gen-output/caustic{_time}.png";
         Directory.CreateDirectory(Path.GetDirectoryName(path));
         File.WriteAllBytes(path, bytes);
     }
@@ -394,9 +399,11 @@ public class CausticGenerator : EditorWindow
         float stepX = size.x / widthSegments;
         float stepY = size.y / heightSegments;
 
+        var timeOffset = new Vector2(_time * 0.01f, _time * 0.01f);
+
         _waterPlane = new PlanePoly(widthSegments, heightSegments, stepX, stepY);
-        _waterPlane.PerlinHeights(new Vector2(0, 0), 0.25f, 0.0325f, 0.0325f);
-        _waterPlane.PerlinHeights(new Vector2(100, 100), 0.035f, 0.1f, 0.1f);
+        _waterPlane.PerlinHeights(new Vector2(0, 0) + timeOffset, 0.25f, 0.0325f, 0.0325f);
+        _waterPlane.PerlinHeights(new Vector2(100, 100) + timeOffset, 0.035f, 0.1f, 0.1f);
 
         _waterSurface = createPlane(_waterPlane, "water", Color.blue);
         _waterSurface.transform.position = new Vector3(0, 6, 0);
@@ -408,5 +415,10 @@ public class CausticGenerator : EditorWindow
         _terrainPlane = new PlanePoly(widthSegments, heightSegments, terrainStepX, terrainStepY);
         _terrainSurface = createPlane(_terrainPlane, "terrain", Color.grey);
         _terrainSurface.transform.position = new Vector3(0, 5, 0);
+    }
+
+    private void onStepTime()
+    {
+        _time += 1;
     }
 }
