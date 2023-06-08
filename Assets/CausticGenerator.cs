@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Collections;
 using System.Collections.Generic;
 using TreeEditor;
@@ -173,12 +174,54 @@ public class CausticGenerator : EditorWindow
             return;
         }
 
-        int res = 128;
+        int res = 512;
 
-        castLight(res, res, _waterPlane, _waterSurface, _terrainSurface, new Vector3(0, 0, 0));
+        var points = castLight(
+            res,
+            res,
+            _waterPlane,
+            _waterSurface,
+            _terrainSurface,
+            new Vector3(0, 0, 0)
+        );
+
+        Texture2D texture = new Texture2D(res, res, TextureFormat.RGBA32, false);
+
+        var baseColor = new Color(0.1f, 0.1f, 0.1f, 1.0f);
+        var colors = texture.GetPixels();
+        for (int i = 0; i < colors.Length; i++)
+        {
+            colors[i] = baseColor;
+        }
+        texture.SetPixels(colors);
+        texture.Apply();
+
+        foreach (var point in points ) {
+            int x = (int)Mathf.Clamp(point.x, 0f, res);
+            int y = (int)Mathf.Clamp(point.z, 0f, res);
+
+            Color color = texture.GetPixel(x, y);
+
+            var intensity = Mathf.Clamp(color.r + 0.1f, 0f, 1.0f);
+            texture.SetPixel(
+                x, y, 
+                new Color(
+                    intensity, intensity, intensity, 1.0f
+                )
+            );
+        }
+
+        texture.Apply();
+
+        byte[] bytes = ImageConversion.EncodeToPNG(texture);
+        DestroyImmediate(texture);
+
+        var path = Application.dataPath + "/../caustics/caustic.png";
+        Directory.CreateDirectory(Path.GetDirectoryName(path));
+        File.WriteAllBytes(path, bytes);
     }
 
-    private void castLight(
+    private List<Vector3> castLight(
         int width, 
         int height,
         PlanePoly poly,
@@ -197,6 +240,8 @@ public class CausticGenerator : EditorWindow
 
         int hitCount = 0;
         int refHitCount = 0;
+
+        var lightPoints = new List<Vector3>();
 
         for (int x = 0; x < width; x++)
         {
@@ -247,10 +292,22 @@ public class CausticGenerator : EditorWindow
                         refHitCount++;
 
                         Debug.DrawRay(hit.point + new Vector3(0, 0.05f, 0), Vector3.down * 0.1f, Color.red, 5);
+
+                        var offsetPoint = hit.point - terrain.transform.position + poly.offset;
+                        var lightPoint = 
+                            new Vector3(
+                                Mathf.Round(offsetPoint.x / (poly.offset.x * 2) * width), 
+                                0.0f,
+                                Mathf.Round(offsetPoint.z / (poly.offset.z * 2) * height)
+                            );
+
+                        lightPoints.Add(lightPoint);
                     }
                 }
             }
         }
+
+        return lightPoints;
     }
 
     private void onGenerate()
