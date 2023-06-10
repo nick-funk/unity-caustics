@@ -58,19 +58,19 @@ public class PlanePoly
 
     public void PerlinHeights(
         Vector2 origin,
-        float scale,
-        float sampleWidth,
-        float sampleHeight)
+        float amplitude,
+        float widthStep,
+        float heightStep)
     {
         for (int x = 0; x <= width; x++)
         {
             for (int z = 0; z <= depth; z++)
             {
-                var sampleX = origin.x + x * sampleWidth;
-                var sampleZ = origin.y + z * sampleHeight;
+                var sampleX = origin.x + x * widthStep;
+                var sampleZ = origin.y + z * heightStep;
 
                 var heightOffset = 
-                    Mathf.PerlinNoise(sampleX, sampleZ) * scale;
+                    Mathf.PerlinNoise(sampleX, sampleZ) * amplitude;
 
                 var index = coordToIndex(depth, x, z);
 
@@ -184,7 +184,7 @@ public class CausticGenerator : EditorWindow
         int res = 512;
 
         var litPoints = new List<Vector3>();
-        for (int p = 0; p < 3; p++)
+        for (int p = 0; p < 5; p++)
         {
             var litSpots = castLight(
                 res,
@@ -194,9 +194,9 @@ public class CausticGenerator : EditorWindow
                 _waterSurface,
                 _terrainSurface,
                 new Vector3(
-                    UnityEngine.Random.Range(0.0f, 0.001f),
+                    UnityEngine.Random.Range(0.0f, 0.1f),
                     0,
-                    UnityEngine.Random.Range(0.0f, 0.001f)
+                    UnityEngine.Random.Range(0.0f, 0.1f)
                 )
             );
 
@@ -232,7 +232,7 @@ public class CausticGenerator : EditorWindow
         texture.Apply();
 
         var blurred = blurTexture(texture, 8);
-        byte[] bytes = ImageConversion.EncodeToPNG(blurred);
+        byte[] bytes = ImageConversion.EncodeToPNG(texture);
 
         DestroyImmediate(texture);
         DestroyImmediate(blurred);
@@ -314,6 +314,8 @@ public class CausticGenerator : EditorWindow
 
         var lightPoints = new List<Vector3>();
 
+        var rayDist = water.transform.position.y - terrain.transform.position.y + 1f;
+
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
@@ -327,7 +329,7 @@ public class CausticGenerator : EditorWindow
                 );
 
                 RaycastHit hit;
-                if (waterCollider.Raycast(ray, out hit, 2f))
+                if (waterCollider.Raycast(ray, out hit, rayDist))
                 {
                     hitCount++;
 
@@ -353,7 +355,7 @@ public class CausticGenerator : EditorWindow
                     var refRay = new Ray(incidentPos, refracted);
                     // Debug.DrawRay(refRay.origin, refRay.direction * 1.33f, Color.yellow, 5);
 
-                    if (terrainCollider.Raycast(refRay, out hit, 3f))
+                    if (terrainCollider.Raycast(refRay, out hit, rayDist))
                     {
                         if (terrain.transform.name != hit.transform.name)
                         {
@@ -362,7 +364,7 @@ public class CausticGenerator : EditorWindow
 
                         refHitCount++;
 
-                        Debug.DrawRay(hit.point + new Vector3(0, 0.05f, 0), Vector3.down * 0.1f, Color.red, 5);
+                        // Debug.DrawRay(hit.point + new Vector3(0, 0.05f, 0), Vector3.down * 0.1f, Color.red, 5);
 
                         var offsetPoint = hit.point - terrain.transform.position + terrainPoly.offset;
                         var lightPoint = 
@@ -395,18 +397,20 @@ public class CausticGenerator : EditorWindow
         int widthSegments = 200;
         int heightSegments = 200;
 
-        Vector2 size = new Vector2(4f, 4f);
+        Vector2 size = new Vector2(3f, 3f);
         float stepX = size.x / widthSegments;
         float stepY = size.y / heightSegments;
 
         var timeOffset = new Vector2(_time * 0.01f, _time * 0.01f);
 
         _waterPlane = new PlanePoly(widthSegments, heightSegments, stepX, stepY);
-        _waterPlane.PerlinHeights(new Vector2(0, 0) + timeOffset, 0.25f, 0.0325f, 0.0325f);
+
+        float scale = 1.0f;
+        _waterPlane.PerlinHeights(new Vector2(0, 0) + timeOffset, 0.25f, 0.03f, 0.03f);
         _waterPlane.PerlinHeights(new Vector2(100, 100) + timeOffset, 0.035f, 0.1f, 0.1f);
 
         _waterSurface = createPlane(_waterPlane, "water", Color.blue);
-        _waterSurface.transform.position = new Vector3(0, 6, 0);
+        _waterSurface.transform.position = new Vector3(0, 5.5f, 0);
 
         Vector2 terrainSize = new Vector2(2f, 2f);
         float terrainStepX = terrainSize.x / widthSegments;
