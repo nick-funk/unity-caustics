@@ -1,8 +1,5 @@
-using System;
 using System.IO;
-using System.Collections;
 using System.Collections.Generic;
-using TreeEditor;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -231,8 +228,8 @@ public class CausticGenerator : EditorWindow
 
         texture.Apply();
 
-        var blurred = blurTexture(texture, 8);
-        byte[] bytes = ImageConversion.EncodeToPNG(texture);
+        var blurred = blurTexture(texture, 5);
+        byte[] bytes = ImageConversion.EncodeToPNG(blurred);
 
         DestroyImmediate(texture);
         DestroyImmediate(blurred);
@@ -397,7 +394,7 @@ public class CausticGenerator : EditorWindow
         int widthSegments = 200;
         int heightSegments = 200;
 
-        Vector2 size = new Vector2(3f, 3f);
+        Vector2 size = new Vector2(2.25f, 2.25f);
         float stepX = size.x / widthSegments;
         float stepY = size.y / heightSegments;
 
@@ -410,7 +407,7 @@ public class CausticGenerator : EditorWindow
         _waterPlane.PerlinHeights(new Vector2(100, 100) + timeOffset, 0.035f, 0.1f, 0.1f);
 
         _waterSurface = createPlane(_waterPlane, "water", Color.blue);
-        _waterSurface.transform.position = new Vector3(0, 5.5f, 0);
+        _waterSurface.transform.position = new Vector3(0, 5.1f, 0);
 
         Vector2 terrainSize = new Vector2(2f, 2f);
         float terrainStepX = terrainSize.x / widthSegments;
