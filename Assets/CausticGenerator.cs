@@ -192,8 +192,8 @@ public class CausticGenerator : EditorWindow
         EditorWindow wnd = GetWindow<CausticGenerator>();
         wnd.titleContent = new GUIContent("Caustic Generator");
 
-        wnd.minSize = new Vector2(450, 300);
-        wnd.maxSize = new Vector2(1920, 1080);
+        wnd.minSize = new Vector2(200, 200);
+        wnd.maxSize = new Vector2(720, 1280);
     }
 
     public void CreateGUI()
@@ -322,29 +322,34 @@ public class CausticGenerator : EditorWindow
             return;
         }
 
-        int res = 512;
+        int rayCastRes = 1024;
+        float rangeX = waterPlaneBeh.PolyDef.segmentWidth * waterPlaneBeh.PolyDef.stepX / rayCastRes;
+        float rangeZ = waterPlaneBeh.PolyDef.segmentDepth * waterPlaneBeh.PolyDef.stepZ / rayCastRes;
 
         var litPoints = new List<Vector3>();
         for (int p = 0; p < 5; p++)
         {
             var litSpots = castLight(
-                res,
-                res,
+                rayCastRes,
+                rayCastRes,
                 waterPlaneBeh.PolyDef,
                 terrainPlaneBeh.PolyDef,
                 waterSurface,
                 terrainSurface,
                 new Vector3(
-                    UnityEngine.Random.Range(0.0f, 0.1f),
+                    UnityEngine.Random.Range(
+                        -rangeX, rangeX),
                     0,
-                    UnityEngine.Random.Range(0.0f, 0.1f)
+                    UnityEngine.Random.Range(
+                        -rangeZ, rangeZ)
                 )
             );
 
             litPoints.AddRange(litSpots);
         }
 
-        Texture2D texture = new Texture2D(res, res, TextureFormat.RGBA32, false);
+        int textureRes = 512;
+        Texture2D texture = new Texture2D(textureRes, textureRes, TextureFormat.RGBA32, false);
 
         var baseColor = new Color(0.1f, 0.1f, 0.1f, 1.0f);
         var colors = texture.GetPixels();
@@ -355,13 +360,15 @@ public class CausticGenerator : EditorWindow
         texture.SetPixels(colors);
         texture.Apply();
 
+        float intensityPerPhoton = 0.025f;
+
         foreach (var point in litPoints ) {
-            int x = (int)Mathf.Clamp(point.x, 0f, res);
-            int y = (int)Mathf.Clamp(point.z, 0f, res);
+            int x = (int)Mathf.Clamp(point.x * textureRes / rayCastRes, 0f, textureRes);
+            int y = (int)Mathf.Clamp(point.z * textureRes / rayCastRes, 0f, textureRes);
 
             Color color = texture.GetPixel(x, y);
 
-            var intensity = Mathf.Clamp(color.r + 0.1f, 0f, 1.0f);
+            var intensity = Mathf.Clamp(color.r + intensityPerPhoton, 0f, 1.0f);
             texture.SetPixel(
                 x, y, 
                 new Color(
@@ -372,7 +379,7 @@ public class CausticGenerator : EditorWindow
 
         texture.Apply();
 
-        var blurred = blurTexture(texture, 5);
+        var blurred = blurTexture(texture, 2);
         byte[] bytes = ImageConversion.EncodeToPNG(blurred);
 
         DestroyImmediate(texture);
@@ -498,11 +505,6 @@ public class CausticGenerator : EditorWindow
 
                     if (terrainCollider.Raycast(refRay, out hit, rayDist))
                     {
-                        if (terrain.transform.name != hit.transform.name)
-                        {
-                            continue;
-                        }
-
                         refHitCount++;
 
                         // Debug.DrawRay(hit.point + new Vector3(0, 0.05f, 0), Vector3.down * 0.1f, Color.red, 5);
