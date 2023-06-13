@@ -4,44 +4,113 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
+public class PerlinArgs
+{
+    public readonly Vector2 origin;
+    public readonly float amplitude;
+    public readonly float widthStep;
+    public readonly float heightStep;
+
+    public PerlinArgs(
+        Vector2 origin,
+        float amplitude,
+        float widthStep,
+        float heightStep)
+    {
+        this.origin = origin;
+        this.amplitude = amplitude;
+        this.widthStep = widthStep;
+        this.heightStep = heightStep;
+    }
+}
+
+public class PlanePolyArgs
+{
+    public readonly Vector3 position;
+    public readonly int segmentWidth;
+    public readonly int segmentDepth;
+    public readonly float width;
+    public readonly float depth;
+    public readonly Color color;
+    public readonly PerlinArgs[] perlinSteps;
+
+    public PlanePolyArgs() : this(new Vector3(), 10, 10, 0.1f, 0.1f, Color.white, new PerlinArgs[0]) { }
+
+    public PlanePolyArgs(
+        Vector3 position,
+        int segmentWidth,
+        int segmentDepth,
+        float width,
+        float depth,
+        Color color,
+        PerlinArgs[] perlinSteps)
+    {
+        this.position = position;
+
+        this.segmentWidth = segmentWidth;
+        this.segmentDepth = segmentDepth;
+
+        this.width = width;
+        this.depth = depth;
+
+        this.color = color;
+        this.perlinSteps = perlinSteps;
+    }
+}
+
 public class PlanePoly
 {
     public readonly List<Vector3> verts;
     public readonly List<int> tris;
     public readonly Vector3 offset;
-    public readonly int width;
-    public readonly int depth;
 
-    public PlanePoly(): this(10, 10, 0.1f, 0.1f) {}
+    public readonly int segmentWidth;
+    public readonly int segmentDepth;
+    public readonly float stepX;
+    public readonly float stepZ;
+    public readonly Color color;
 
-    public PlanePoly(int width, int depth, float stepX, float stepY)
+    public PlanePoly(): this(10, 10, 0.1f, 0.1f, Color.white) {}
+
+    public PlanePoly(
+        int segmentWidth,
+        int segmentDepth,
+        float width,
+        float depth,
+        Color color)
     {
-        this.width = width;
-        this.depth= depth;
+        this.segmentWidth = segmentWidth;
+        this.segmentDepth= segmentDepth;
+
+        this.stepX = width / segmentWidth;
+        this.stepZ = depth / segmentDepth;
+
+        this.color = color;
+
         verts = new List<Vector3>();
         tris = new List<int>();
 
-        offset = new Vector3(width * stepX / 2f, 0, depth * stepY / 2f);
+        offset = new Vector3(segmentWidth * stepX / 2f, 0, segmentDepth * stepZ / 2f);
 
-        for (int x = 0; x <= width; x++)
+        for (int x = 0; x <= segmentWidth; x++)
         {
-            for (int z = 0; z <= depth; z++)
+            for (int z = 0; z <= segmentDepth; z++)
             {
                 float sX = x * stepX;
-                float sZ = z * stepY;
+                float sZ = z * stepZ;
 
                 verts.Add(new Vector3(sX, 0, sZ) - offset);
             }
         }
 
-        for (int x = 0; x < width; x++)
+        for (int x = 0; x < segmentWidth; x++)
         {
-            for (int z = 0; z < depth; z++)
+            for (int z = 0; z < segmentDepth; z++)
             {
-                var v0 = coordToIndex(depth, x, z);
-                var v1 = coordToIndex(depth, x, z + 1);
-                var v2 = coordToIndex(depth, x + 1, z);
-                var v3 = coordToIndex(depth, x + 1, z + 1);
+                var v0 = coordToIndex(segmentDepth, x, z);
+                var v1 = coordToIndex(segmentDepth, x, z + 1);
+                var v2 = coordToIndex(segmentDepth, x + 1, z);
+                var v3 = coordToIndex(segmentDepth, x + 1, z + 1);
 
                 tris.Add(v0);
                 tris.Add(v1);
@@ -59,9 +128,9 @@ public class PlanePoly
         float widthStep,
         float heightStep)
     {
-        for (int x = 0; x <= width; x++)
+        for (int x = 0; x <= segmentWidth; x++)
         {
-            for (int z = 0; z <= depth; z++)
+            for (int z = 0; z <= segmentDepth; z++)
             {
                 var sampleX = origin.x + x * widthStep;
                 var sampleZ = origin.y + z * heightStep;
@@ -69,7 +138,7 @@ public class PlanePoly
                 var heightOffset = 
                     Mathf.PerlinNoise(sampleX, sampleZ) * amplitude;
 
-                var index = coordToIndex(depth, x, z);
+                var index = coordToIndex(segmentDepth, x, z);
 
                 verts[index] = 
                     new Vector3(
@@ -83,16 +152,16 @@ public class PlanePoly
 
     public void SineHeights(float amplitude, float frequency)
     {
-        for (int x = 0; x <= width; x++)
+        for (int x = 0; x <= segmentWidth; x++)
         {
-            for (int z = 0; z <= depth; z++)
+            for (int z = 0; z <= segmentDepth; z++)
             {
                 var sampleZ = z * frequency;
                 var sampleX = x * frequency / 4;
                 var heightOffset = 
                     0.25f * amplitude * Mathf.Sin(sampleZ) + 
                     0.75f * amplitude * Mathf.Sin(sampleX);
-                var index = coordToIndex(depth, x, z);
+                var index = coordToIndex(segmentDepth, x, z);
 
                 verts[index] =
                     new Vector3(
@@ -112,11 +181,10 @@ public class PlanePoly
 
 public class CausticGenerator : EditorWindow
 {
-    private GameObject _waterSurface;
-    private GameObject _terrainSurface;
-    private PlanePoly _waterPlane;
-    private PlanePoly _terrainPlane;
     private int _time;
+
+    private PlanePolyArgs _waterArgs;
+    private PlanePolyArgs _terrainArgs;
 
     [MenuItem("Tools/Caustics")]
     public static void ShowMenu()
@@ -130,6 +198,21 @@ public class CausticGenerator : EditorWindow
 
     public void CreateGUI()
     {
+        _waterArgs = new PlanePolyArgs(
+            new Vector3(0, 6, 0),
+            200, 200, 2.25f, 2.25f, Color.blue, 
+            new PerlinArgs[]
+            {
+                new PerlinArgs(new Vector2(0, 0), 0.25f, 0.03f, 0.03f),
+                new PerlinArgs(new Vector2(100, 100), 0.035f, 0.1f, 0.1f),
+            }
+        );
+        _terrainArgs = new PlanePolyArgs(
+            new Vector3(0, 5.5f, 0),
+            200, 200, 2f, 2f, Color.white,
+            new PerlinArgs[0]
+        );
+
         var generateButton = new Button(onGenerate);
         generateButton.text = "Generate";
         rootVisualElement.Add(generateButton);
@@ -138,12 +221,56 @@ public class CausticGenerator : EditorWindow
         castLightButton.text = "Cast Light";
         rootVisualElement.Add(castLightButton);
 
-        var stepTimeButton = new Button(onStepTime);
-        stepTimeButton.text = "Step Time";
-        rootVisualElement.Add(stepTimeButton);
+        var clearButton = new Button(onClear);
+        clearButton.text = "Clear";
+        rootVisualElement.Add(clearButton);
     }
 
-    private GameObject createPlane(PlanePoly plane, string name, Color color)
+    private void onClear()
+    {
+        var water = GameObject.Find("water");
+        if (water)
+        {
+            DestroyImmediate(water);
+        }
+
+        var terrain = GameObject.Find("terrain");
+        if (terrain)
+        {
+            DestroyImmediate(terrain);
+        }
+    }
+
+    private GameObject createOrFindPlane(string name, PlanePolyArgs args)
+    {
+        var obj = GameObject.Find(name);
+        if (!obj)
+        {
+            return createPlaneObjFromArgs(name, args);
+        }
+
+        var planeBeh = obj.GetComponent<CausticPlaneBehaviour>();
+        if (!planeBeh || planeBeh.PolyDef == null)
+        {
+            DestroyImmediate(obj);
+            return createPlaneObjFromArgs(name, args);
+        }
+
+        return obj;
+    }
+
+    private GameObject createPlaneObjFromArgs(string name, PlanePolyArgs args)
+    {
+        var newPlane = new PlanePoly(args.segmentWidth, args.segmentDepth, args.width, args.depth, args.color);
+        foreach (var step in args.perlinSteps)
+        {
+            newPlane.PerlinHeights(step.origin, step.amplitude, step.widthStep, step.heightStep);
+        }
+
+        return createPlaneObj(newPlane, name, args.position);
+    }
+
+    private GameObject createPlaneObj(PlanePoly plane, string name, Vector3 position)
     {
         var obj = new GameObject();
         obj.name = name;
@@ -162,19 +289,36 @@ public class CausticGenerator : EditorWindow
         mesh.RecalculateTangents();
 
         var material = new Material(Shader.Find("Diffuse"));
-        material.color = color;
+        material.color = plane.color;
         renderer.material = material;
 
         obj.AddComponent<MeshCollider>();
+
+        var planeBeh = obj.AddComponent<CausticPlaneBehaviour>();
+        planeBeh.PolyDef = plane;
+
+        obj.transform.position = position;
 
         return obj;
     }
 
     private void onCastLight()
     {
-        if (!_waterSurface || !_terrainSurface || _waterPlane == null || _terrainPlane == null)
+        var waterSurface = createOrFindPlane("water", _waterArgs);
+        var terrainSurface = createOrFindPlane("terrain", _terrainArgs);
+
+        if (!waterSurface || !terrainSurface)
         {
-            Debug.Log("missing surfaces and/or planes");
+            Debug.Log("missing surfaces");
+            return;
+        }
+
+        var waterPlaneBeh = waterSurface.GetComponent<CausticPlaneBehaviour>();
+        var terrainPlaneBeh = terrainSurface.GetComponent<CausticPlaneBehaviour>();
+
+        if (!waterPlaneBeh || waterPlaneBeh.PolyDef == null || !terrainPlaneBeh || terrainPlaneBeh.PolyDef == null)
+        {
+            Debug.Log("missing planes");
             return;
         }
 
@@ -186,10 +330,10 @@ public class CausticGenerator : EditorWindow
             var litSpots = castLight(
                 res,
                 res,
-                _waterPlane,
-                _terrainPlane,
-                _waterSurface,
-                _terrainSurface,
+                waterPlaneBeh.PolyDef,
+                terrainPlaneBeh.PolyDef,
+                waterSurface,
+                terrainSurface,
                 new Vector3(
                     UnityEngine.Random.Range(0.0f, 0.1f),
                     0,
@@ -382,44 +526,7 @@ public class CausticGenerator : EditorWindow
 
     private void onGenerate()
     {
-        if (_waterSurface)
-        {
-            DestroyImmediate(_waterSurface);
-        }
-        if (_terrainSurface)
-        {
-            DestroyImmediate(_terrainSurface);
-        }
-
-        int widthSegments = 200;
-        int heightSegments = 200;
-
-        Vector2 size = new Vector2(2.25f, 2.25f);
-        float stepX = size.x / widthSegments;
-        float stepY = size.y / heightSegments;
-
-        var timeOffset = new Vector2(_time * 0.01f, _time * 0.01f);
-
-        _waterPlane = new PlanePoly(widthSegments, heightSegments, stepX, stepY);
-
-        float scale = 1.0f;
-        _waterPlane.PerlinHeights(new Vector2(0, 0) + timeOffset, 0.25f, 0.03f, 0.03f);
-        _waterPlane.PerlinHeights(new Vector2(100, 100) + timeOffset, 0.035f, 0.1f, 0.1f);
-
-        _waterSurface = createPlane(_waterPlane, "water", Color.blue);
-        _waterSurface.transform.position = new Vector3(0, 5.1f, 0);
-
-        Vector2 terrainSize = new Vector2(2f, 2f);
-        float terrainStepX = terrainSize.x / widthSegments;
-        float terrainStepY = terrainSize.y / heightSegments;
-
-        _terrainPlane = new PlanePoly(widthSegments, heightSegments, terrainStepX, terrainStepY);
-        _terrainSurface = createPlane(_terrainPlane, "terrain", Color.grey);
-        _terrainSurface.transform.position = new Vector3(0, 5, 0);
-    }
-
-    private void onStepTime()
-    {
-        _time += 1;
+        createOrFindPlane("water", _waterArgs);
+        createOrFindPlane("terrain", _terrainArgs);
     }
 }
