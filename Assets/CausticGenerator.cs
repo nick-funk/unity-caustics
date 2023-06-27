@@ -6,21 +6,30 @@ using UnityEngine.UIElements;
 
 public class PerlinArgs
 {
+    public readonly long seed;
     public readonly Vector2 origin;
     public readonly float amplitude;
     public readonly float widthStep;
     public readonly float heightStep;
+    public readonly float windowWidth;
+    public readonly float windowHeight;
 
     public PerlinArgs(
+        long seed,
         Vector2 origin,
         float amplitude,
         float widthStep,
-        float heightStep)
+        float heightStep,
+        float windowWidth,
+        float windowHeight)
     {
+        this.seed = seed;
         this.origin = origin;
         this.amplitude = amplitude;
         this.widthStep = widthStep;
         this.heightStep = heightStep;
+        this.windowWidth = windowWidth;
+        this.windowHeight = windowHeight;
     }
 }
 
@@ -70,6 +79,9 @@ public class PlanePoly
     public readonly float stepZ;
     public readonly Color color;
 
+    public readonly float width;
+    public readonly float depth;
+
     public PlanePoly(): this(10, 10, 0.1f, 0.1f, Color.white) {}
 
     public PlanePoly(
@@ -84,6 +96,9 @@ public class PlanePoly
 
         this.stepX = width / segmentWidth;
         this.stepZ = depth / segmentDepth;
+
+        this.width = width;
+        this.depth= depth;
 
         this.color = color;
 
@@ -123,11 +138,16 @@ public class PlanePoly
     }
 
     public void PerlinHeights(
+        long seed,
         Vector2 origin,
         float amplitude,
         float widthStep,
-        float heightStep)
+        float heightStep,
+        float windowWidth,
+        float windowHeight)
     {
+        var noise = new TiledNoise();
+
         for (int x = 0; x <= segmentWidth; x++)
         {
             for (int z = 0; z <= segmentDepth; z++)
@@ -135,8 +155,8 @@ public class PlanePoly
                 var sampleX = origin.x + x * widthStep;
                 var sampleZ = origin.y + z * heightStep;
 
-                var heightOffset = 
-                    Mathf.PerlinNoise(sampleX, sampleZ) * amplitude;
+                var heightOffset =
+                    noise.Generate(seed, sampleX, sampleZ, windowWidth, windowHeight) * amplitude;
 
                 var index = coordToIndex(segmentDepth, x, z);
 
@@ -203,8 +223,9 @@ public class CausticGenerator : EditorWindow
             200, 200, 2.25f, 2.25f, Color.blue, 
             new PerlinArgs[]
             {
-                new PerlinArgs(new Vector2(0, 0), 0.25f, 0.03f, 0.03f),
-                new PerlinArgs(new Vector2(100, 100), 0.035f, 0.1f, 0.1f),
+                new PerlinArgs(1234567890, new Vector2(0, 0), 0.15f, 0.1f, 0.1f, 10f, 10f),
+                new PerlinArgs(1818328211, new Vector2(0, 0), 0.075f, 0.25f, 0.25f, 7f, 7f),
+                new PerlinArgs(9345821943, new Vector2(0, 0), 0.025f, 0.5f, 0.5f, 5f, 5f),
             }
         );
         _terrainArgs = new PlanePolyArgs(
@@ -264,7 +285,15 @@ public class CausticGenerator : EditorWindow
         var newPlane = new PlanePoly(args.segmentWidth, args.segmentDepth, args.width, args.depth, args.color);
         foreach (var step in args.perlinSteps)
         {
-            newPlane.PerlinHeights(step.origin, step.amplitude, step.widthStep, step.heightStep);
+            newPlane.PerlinHeights(
+                step.seed,
+                step.origin,
+                step.amplitude,
+                step.widthStep,
+                step.heightStep,
+                step.windowWidth,
+                step.windowHeight
+            );
         }
 
         return createPlaneObj(newPlane, name, args.position);
@@ -326,8 +355,10 @@ public class CausticGenerator : EditorWindow
         float rangeX = waterPlaneBeh.PolyDef.segmentWidth * waterPlaneBeh.PolyDef.stepX / rayCastRes;
         float rangeZ = waterPlaneBeh.PolyDef.segmentDepth * waterPlaneBeh.PolyDef.stepZ / rayCastRes;
 
+        Debug.Log(rayCastRes);
+
         var litPoints = new List<Vector3>();
-        for (int p = 0; p < 5; p++)
+        for (int p = 0; p < 3; p++)
         {
             var litSpots = castLight(
                 rayCastRes,
